@@ -3,6 +3,20 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+
+# GIS temporary files
+*.lock
+*.lock.*
+*.lck
+*tmp*
+*temp*
+*.ovr
+*.aux.xml
+*.aux
+*.rrd
+*.vat.cpg
+*.vat.dbf
+
 # C extensions
 *.so
 

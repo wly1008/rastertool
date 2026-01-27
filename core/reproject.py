@@ -156,13 +156,16 @@ def reproject(raster_in, dst_in=None,
         # 重采样方式
         how = how if isinstance(how, int) else getattr(Resampling, how)
         # 初始化source矩阵
-        if np.dtype(profile['dtype']) == np.int8:
-            # int8时,dst_nodata输入负数无效
-            arrn = src.read(out_dtype=np.int16)
-            dst_array = np.empty((count, dst_height, dst_width), dtype=np.int16)
-        else:
-            arrn = src.read(out_dtype=dtype)
-            dst_array = np.empty((count, dst_height, dst_width), dtype=profile['dtype'])
+        # if np.dtype(profile['dtype']) == np.int8:
+        #     # int8时,nodata输入负数无效
+        #     arrn = src.read(out_dtype=np.int16)
+        #     dst_array = np.empty((count, dst_height, dst_width), dtype=np.int16)
+        # else:
+        #     arrn = src.read(out_dtype=dtype)
+        #     dst_array = np.empty((count, dst_height, dst_width), dtype=profile['dtype'])
+        arrn = src.read()
+        dst_array = np.empty((count, dst_height, dst_width), dtype=profile['dtype'])
+        
         # 进行重投影
         _reproject(  
             # 源文件参数
@@ -179,14 +182,17 @@ def reproject(raster_in, dst_in=None,
             resampling=how,
             num_threads=num_threads,
             )
-        if 'int8' in str(profile['dtype']):
-            dst_array = dst_array.astype(np.int8)
-        # 删除中间栅格
-    if delete and issubclass(type(raster_in), (str,pathlib.PurePath)):
+        # if 'int8' in str(profile['dtype']):
+        #     dst_array = dst_array.astype(np.int8)
+    # 删除中间栅格
+    if delete and isinstance(raster_in, (str,pathlib.PurePath)):
         
         os.remove(raster_in)
     # 按需求更新
+    
     profile.update(creation_options)
+    compress = profile.get('compress', 'lzw') or 'lzw'
+    profile['compress'] = compress
     profile['descriptions'] = bandNames
     # 输出
     if out_path:
