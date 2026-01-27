@@ -123,10 +123,14 @@ def nan_equal(arr, value):
 
 
 
-def renan(source, out_path, ):...
-
-
-
+def renan(source, out_path, ):
+    
+    
+    
+    
+    
+    
+    ...
 
 
 
@@ -168,4 +172,11 @@ def get_attrs(o, names):
     return [getattr(o, name) for name in names]
 
 
-
+if __name__ == '__main__':
+    current_dir = os.path.dirname(__file__)
+    modules_inspect(current_dir)
+    
+    
+    
+    
+    
