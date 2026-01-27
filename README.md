@@ -10,6 +10,44 @@
   - ``clip``中``crop``参数的使用，需空间参考一致，部分投影坐标系经``reproject``投影后虽统一投影但部分可选参数并不完全统一，导致判定失误，``crop``失败，可自行注销clip/crop处检测部分，让之正常运行，记得工作后加回。
 
 
+
+本人依赖库版本:  
+
+python 3.13.11
+
+``gdal``                    3.11.4
+
+``rasterio ``            1.4.3
+
+``geopandas ``           1.1.2
+
+``scipy``                1.17.0
+
+``shapely ``             2.1.2
+
+``xarray  ``             2025.12.0
+
+``pyproj  ``             3.7.2
+
+
+
+``opencv-python ``            4.13.0.90  
+
+``tqdm ``                4.67.1
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 ## 重投影``reproject``、重采样``resampling``
 
 - ``reproject``: ``rasterio.reproject``工具化，可在文件层面操作。
@@ -18,14 +56,14 @@
 ## 裁剪``clip``
 
 - 算法思路类于```rasterio.rio.clip``
-- 分窗口``clip``位于tast.unify.clip_resampling.clip, 后续做番检测再将之移出，另同位置的分窗口重采样未考虑窗口衔接处的邻域计算，不在乎误差可酌情使用，既用分窗口，一般为超大型栅格，却可忽略此误差。
+- 分窗口``clip``位于``tast.unify.clip_resampling.clip``, 后续做番检测再将之移出，另同位置的分窗口重采样未考虑窗口衔接处的邻域计算，不在乎误差可酌情使用，既用分窗口，一般为超大型栅格，却可忽略此误差。
 
 ## 统一地理空间属性``unify``
 
 - 基于本库``clip``与``reproject``函数实现栅格文件间的地理空间属性完全一致--空间参考、分辨率、空间范围。以使得项目栅格矩阵像元在地理空间上一一对应，是各栅格处理分析的基础工作。
 - ``unify``以拼接模块实现，生成中间文件以妥协内存与速度问题。后续将实现矩阵为中间数据，暂待。
-- 一般处理流程为reproject(内置resampling参数)-->clip，
-- 如待处理栅格过大无法读取，请使用Double(clip-->reproject-->clip)或Triple(clip-->reproject-->resampling-->clip)参数
+- 一般处理流程为``reproject``(内置resampling参数)-->clip，
+- 如待处理栅格过大无法读取，请使用Double(``clip``-->``reproject-``->``clip``)或Triple(``clip``-->``reproject``-->``resampling-``->``clip``)参数
 - 如目标范围依旧过大，请使用分窗口裁剪，分窗口重采样考虑误差，分窗口投影暂未实现。
 
 
@@ -34,12 +72,12 @@
 - 参考``rasterio.merge``，实现重叠区域按距离加权平均
 - 加权方法为插值法的变体，距离参数由与源数据距离d_origin换为重叠区域dmax与像元离边缘距离差值d_overlap_max-d_edge, 由于W可自定义，按其物理意义该参数被控制于正值或非负值。
 - 内置加权方法:
-  - Gaussian高斯距离衰减法:
+  - ``Gaussian``高斯距离衰减法:
 
     d_max = W            
     ω_A = e^((d_max - d_A )^2 / (-2σ^2 ))       
     ω_B = e^((d_max - d_B )^2 / (-2σ^2 ))       
-    V = (A*ω_A + B*ω_B) / (ω_A + ω_B)  
+    V = (A * ω_A + B * ω_B) / (ω_A + ω_B)  
     其中：  
     d：像元至边界的距离  
     dmax: 像元至边界的最大距离  
@@ -48,7 +86,7 @@
     σ：标准差，控制衰减速度（越小衰减越快），经验估计W=3σ~5σ  
     V：A,B叠置区域加权值  
     
-  - IDW反距离权重法
+  - ``IDW``反距离权重法
     
     d_max = W             
     ω_A = 1 / (dmax - d_A)^k      
@@ -62,7 +100,7 @@
     ω_A、ω_B：对应影像的距离权重
     k：距离衰减指数（幂指数），控制权重随距离增加的衰减速度
 
-  - Voronoi 最近距离赋值法
+  - ``Voronoi`` 最近距离赋值法
     
     V = SA * A + SB * B  
     SA, SB = selectmax(d_A, d_B)

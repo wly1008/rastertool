@@ -726,6 +726,7 @@ def merge_distance_weight(sources,          # 输入栅格文件列表
                 dw = windows.from_bounds(*chunk_bounds, output_transform)
                 dw = win_align(dw)
                 dst.write(dest, window=dw)
+                
 
             if dst is None:
                 if masked:
@@ -734,6 +735,7 @@ def merge_distance_weight(sources,          # 输入栅格文件列表
             else:
                 if first_colormap:
                     dst.write_colormap(1, first_colormap)
+                dst.update_stats()   # rasterio > 1.4.0, 没有就不要了
                 dst.close()
             
             

@@ -1,5 +1,5 @@
 import os
-from mycode._Class import Paths
+from rastertool._Class import Paths
 
 
 dir_data = os.path.abspath(os.path.dirname(__file__))
