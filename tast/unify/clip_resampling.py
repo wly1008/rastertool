@@ -225,7 +225,7 @@ def clip(raster_in,
     y_end, x_end = src.index(right, bottom)
     
     
-    
+    ## 分辨率相同
     if unify and ap.get_RasterAttr(src,'cell_size') == ap.get_RasterAttr(dst,'cell_size'):
         width, height = dst.shape[::-1]
     else:
