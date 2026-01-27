@@ -1,14 +1,16 @@
 # -*- coding: utf-8 -*-
 
 
-from rasterio.enums import Resampling
+
+import ast
 import os
 import numpy as np
-import pandas as pd
-import rasterio
-from contextlib import ExitStack, contextmanager
-import os, sys, re, time, warnings, inspect, pathlib, math
 
+import rasterio
+from rasterio.enums import Resampling
+
+from contextlib import  contextmanager
+import importlib.metadata as md
 
 
 
@@ -129,9 +131,41 @@ def renan(source, out_path, ):...
 
 
 
+def modules_inspect(PKG_PATH):
+    modules = set()
+    
+    for root, _, files in os.walk(PKG_PATH):
+        for f in files:
+            if f.endswith(".py"):
+                path = os.path.join(root, f)
+                with open(path, "r", encoding="utf-8", errors="ignore") as fp:
+                    try:
+                        tree = ast.parse(fp.read())
+                    except Exception:
+                        continue
+    
+                for node in ast.walk(tree):
+                    if isinstance(node, ast.Import):
+                        for n in node.names:
+                            modules.add(n.name.split(".")[0])
+                    elif isinstance(node, ast.ImportFrom):
+                        if node.module:
+                            modules.add(node.module.split(".")[0])
+    
+    print("检测到的依赖模块：")
+    for m in sorted(modules):
+        print(" ", m)
+    
+    print("\n已安装版本：")
+    for m in sorted(modules):
+        try:
+            print(f"{m:20} {md.version(m)}")
+        except Exception:
+            print(f"{m:20} (未找到版本)")
 
 
-
+def get_attrs(o, names):
+    return [getattr(o, name) for name in names]
 
 
 
