@@ -5,21 +5,29 @@
 - 当前包含主要工具有重投影``reproject``、重采样``resampling``、裁剪``clip``、统一地理空间属性``unify``、按距离权重合并``merge_distance_weights`` 
 - 为实现某些功能，添加的部分参数可不予理会，使用常用参数即可，项目编写时间跨度较长，作者未系统记录，在编写风格思路上较为粗糙，待后续空闲时间重构。  
 - 本库函数作者多次检测与在实际项目中使用，满足绝大部分情况使用。
+- 分窗口版待实现
 - 部分bug暂时无闲时修改，将列于下方。
+  - 
+  - 
 
 
 ## 重投影``reproject``、重采样``resampling``
+
 - ``reproject``: ``rasterio.reproject``工具化，可在文件层面操作。
 - ``resampling``: 即不做投影变化的``reproject``调用
 
 ## 裁剪``clip``
-- 算法思路类```rasterio.rio.clip``
-- 分窗口``clip``位于tast.unify.clip_resampling.clip, 后续做番检测再将之移出，另同位置的分窗口重采样未考虑窗口衔接处的邻域计算，不在乎误差可酌情使用，即用分窗口，一般为超大型栅格，却可忽略此误差。
+
+- 算法思路类于```rasterio.rio.clip``
+- 分窗口``clip``位于tast.unify.clip_resampling.clip, 后续做番检测再将之移出，另同位置的分窗口重采样未考虑窗口衔接处的邻域计算，不在乎误差可酌情使用，既用分窗口，一般为超大型栅格，却可忽略此误差。
 
 ## 统一地理空间属性``unify``
 
 - 基于本库``clip``与``reproject``函数实现栅格文件间的地理空间属性完全一致--空间参考、分辨率、空间范围。以使得项目栅格矩阵像元在地理空间上一一对应，是各栅格处理分析的基础工作。
 - ``unify``以拼接模块实现，生成中间文件以妥协内存与速度问题。后续将实现矩阵为中间数据，暂待。
+- 一般处理流程为reproject(内置resampling参数)-->clip，
+- 如待处理栅格过大无法读取，请使用Double(clip-->reproject-->clip)或Triple(clip-->reproject-->resampling-->clip)参数
+- 如目标范围依旧过大，请使用分窗口裁剪，分窗口重采样考虑误差，分窗口投影暂未实现。
 
 
 ## 按距离权重合并``merge_distance_weights``
