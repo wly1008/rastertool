@@ -18,6 +18,10 @@ from rasterio.crs import CRS
 from rasterio.enums import Resampling
 from rasterio.warp import reproject as _reproject
 
+def cast_value(x, dtype):
+    dt = np.dtype(dtype)      # 统一解析字符串 / 类型 / numpy dtype
+    return np.array(x, dtype=dt).item()
+
 
 def create_raster(**kwargs):
     memfile = rasterio.MemoryFile()
@@ -31,7 +35,7 @@ def reproject(raster_in, dst_in=None,
               out_path=None, get_ds=True, 
               crs=None,
               how='nearest',
-              dst_nodata=None,
+              nodata=None,
               resolution=None, dst_width=None, dst_height=None,
               num_threads=4,
               dtype=None,
@@ -66,7 +70,7 @@ def reproject(raster_in, dst_in=None,
         ...其余见rasterio.enums.Resampling
     
     
-    dst_nodata : 数字类, optional
+    nodata : 数字类, optional
         目标无效值，默认与输入栅格相同(if set), 或者0(GDAL default) . Default: None.
     resolution: tuple (x resolution, y resolution) or float, optional
         目标分辨率，以目标坐标参考为单位系统.
@@ -104,7 +108,7 @@ def reproject(raster_in, dst_in=None,
         #                      " coefficients may not be used together.")
         # 原数据属性获取
         src = stack.enter_context(rasterio.open(raster_in)) if issubclass(type(raster_in), (str,pathlib.PurePath)) else raster_in
-        
+        # src.read()
         profile = src.profile.copy()
         src_crs = src.crs
         src_nodata = src.nodata
@@ -120,22 +124,24 @@ def reproject(raster_in, dst_in=None,
         if dst_in:
             dst = stack.enter_context(rasterio.open(dst_in)) if issubclass(type(dst_in), (str,pathlib.PurePath)) else dst_in
             dst_crs = dst.crs
-        elif issubclass(type(crs), CRS):
-            dst_crs = crs
-        elif isinstance(crs, str):
-            dst_crs = rasterio.crs.CRS.from_string(crs)
-        else:
+        elif crs is None:
             dst_crs = src_crs
+        else:
+            dst_crs = CRS.from_user_input(crs)
         
         # 目标无效值设置
-
+        dst_nodata = nodata
         if dst_nodata is None:
             dst_nodata = src_nodata
+        if dst_nodata is None:
+            dst_nodata = 0
         
         if dtype is None:
             dtype = profile['dtype']
         else:
             profile['dtype'] = dtype
+        
+        dst_nodata = cast_value(dst_nodata, dtype)
         
         # 计算新的位置信息
         dst_transform, dst_width, dst_height = calculate_default_transform(
@@ -150,7 +156,7 @@ def reproject(raster_in, dst_in=None,
         # 重采样方式
         how = how if isinstance(how, int) else getattr(Resampling, how)
         # 初始化source矩阵
-        if 'int8' in str(profile['dtype']):
+        if np.dtype(profile['dtype']) == np.int8:
             # int8时,dst_nodata输入负数无效
             arrn = src.read(out_dtype=np.int16)
             dst_array = np.empty((count, dst_height, dst_width), dtype=np.int16)

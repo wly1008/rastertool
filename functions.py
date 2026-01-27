@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-import mycode.arcmap
+
 from rasterio.enums import Resampling
 import os
 import numpy as np
