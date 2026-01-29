@@ -7,7 +7,8 @@ Created on Sun Jan 25 23:01:13 2026
 
 
 
-from rastertool.functions import out, readarray, get_dataset_opener,copy_raster
+from rastertool.functions import out, read, readarray, get_dataset_opener
+
 
 from rastertool.core.api import (merge_distance_weight,
                                  unify,

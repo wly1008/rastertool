@@ -250,7 +250,7 @@ def _clip_array(source, bounds, src_bounds=None, src_transform=None,
     else:
         raise ValueError('mode 可选参数为 round,rio,touch,或者输入自定义矩阵范围取整函数')
 
-    top+ bottom + src_height
+    # top = bottom + src_height
     col = [left, right]
     row = [top, bottom]
     
