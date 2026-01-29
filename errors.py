@@ -24,3 +24,29 @@ class MergeError(RastertoolError):
 
 class WindowError(RastertoolError):
     """Raised when errors occur during window operations"""
+
+
+
+
+class NodataOverflow(RastertoolError):
+    """Raised when no-data value overflow occurs"""
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -19,8 +19,8 @@ from functools import partial
 import rasterio
 from rasterio.enums import Resampling
 
-from .clip import clip
-from .reproject import reproject
+from rastertool.core.clip import clip
+from rastertool.core.reproject import reproject
 from rastertool.warnings import SetNodataWarning
 
 _temp_dir = os.path.dirname(os.path.abspath(__file__))
