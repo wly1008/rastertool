@@ -2,14 +2,109 @@
 
 import ast
 import os
+import cmath
+import warnings
 import numpy as np
 
 import rasterio
+from rasterio.crs import CRS
 from rasterio.enums import Resampling
 import geopandas as gpd
 
 from contextlib import  contextmanager
 import importlib.metadata as md
+
+
+
+
+
+def eq_crs(crs1, crs2):
+    return CRS.from_user_input(crs1) == CRS.from_user_input(crs2)
+
+def check_nodata_inrange(nodata, dt):
+    '''检测无效值是否在类型的范围内'''
+    inrange = False
+
+    if np.issubdtype(dt, np.integer):
+        info = np.iinfo(dt)
+        inrange = info.min <= nodata <= info.max
+    else:
+        if cmath.isfinite(nodata):
+            info = np.finfo(dt)
+            inrange = info.min <= nodata <= info.max
+            nodata_dt = np.min_scalar_type(nodata)
+            inrange = inrange & np.can_cast(nodata_dt, dt)
+        else:
+            inrange = True
+    
+    return inrange
+
+
+
+
+def cast_value(x, dtype):
+    dt = np.dtype(dtype)      # 统一解析字符串 / 类型 / numpy dtype
+    return np.array(x, dtype=dt).item()
+
+
+def set_nodata(nodataval, dt, nodata=None, dtype=None):
+    '''无效值的规范设置'''
+    ##nodataval=None, nodataval, dt e
+    
+    
+    src_nodata = nodataval
+    src_dt = dt
+    
+    if dtype is not None:
+        dt = dtype
+    
+    if nodata is not None:
+        nodataval = nodata
+    
+    if nodataval is not None:
+        
+        if not check_nodata_inrange(nodataval, dt):  # 出现溢出
+        
+        
+            if check_nodata_inrange(nodataval, src_dt):  # nodata可存入源dtype; 回退dtype
+                warnings.warn(
+                        f'忽略dtype参数。无效值{nodataval}，'
+                        f'不能安全的被转换为数据类型{dt}.'
+                        '可以使用--dtype 选项来覆盖它，以获得更好的效果。'
+                        '恢复使用源数据的数据类型')
+                dt = src_dt
+            
+            elif src_nodata is None:  # 源nodata为None，设置为0
+                warnings.warn('nodata is None, set to 0(GDAL default)')
+                nodataval = 0
+                
+            elif check_nodata_inrange(src_nodata, dt):  # 源nodata可存入dtype; 回退nodata
+                warnings.warn(
+                        f'忽略nodata参数。无效值{nodataval}，不能安全的被转换为数据类型{dt}。'
+                        '可以使用 --nodata 选项来覆盖它，以获得更好的效果。恢复使用源数据的无效值'
+                        )
+                nodataval = src_nodata
+            else:  # 源nodata在dtype溢出; 回退nodata、dtype
+                if not check_nodata_inrange(src_nodata, src_dt):
+                    raise ValueError('源数据无效值与数据类型不匹配')
+                warnings.warn(
+                        f'忽略nodata与dtype参数。无效值{nodataval}与源数据无效值{src_nodata}，'
+                        f'皆不能安全的被转换为数据类型{dt}.'
+                        '可以使用 --nodata与--dtype 选项来覆盖它，以获得更好的效果。'
+                        '恢复使用源数据的无效值与数据类型')
+                dt = src_dt
+                nodataval = src_nodata
+                
+        
+    else:
+        warnings.warn('nodata is None, set to 0(GDAL default)')
+        nodataval = 0
+    
+    nodataval = cast_value(nodataval, dt)
+    
+    return nodataval, dt
+
+
 
 
 
@@ -65,6 +160,8 @@ def readarray(source,
     
     return arr
 
+
+
 def out(out_path, data, profile, update_stats=False, **profile_update):
     '''
     
@@ -97,9 +194,50 @@ def out(out_path, data, profile, update_stats=False, **profile_update):
             src.update_stats()  # raserio >= 1.4.0
             # for i in range(1,profile['count']+1):
             #     src.statistics(i)
+            
+
+        
+def output(out_path, data, mask, profile,
+           nodata=None, dtype=None, compress=None, update_stats=None):
+    # 6. 处理输出的 NoData、数据类型与 profile
+    profile = profile.copy()
+    nodataval = profile['nodata']
+    dt = profile['dtype']
+    shape = data.shape
+
+    nodata, dtype = set_nodata(nodataval, dt, nodata, dtype)
+    compress = profile.get('compress', None) if compress is None else compress
+    profile.update({'nodata': nodata, 'dtype': dtype, 'compress': compress})
+
+    
+    # 7. 生成输出数组，并按 mask 写入结果 / NoData
+    dest = np.empty(shape, dtype=dtype)
+
+    np.copyto(dest, data, where=~mask)
+    np.copyto(dest, nodata, where=mask)
+
+    
+    # 8. 输出结果
+    if out_path is None:
+        return dest, profile
+    else:
+        out(out_path, dest, profile, update_stats=update_stats)
     
 
+def tuple_process(argument, n=2):
+    if argument:
+        # arguments argument into tuple
+        try:
+            arg = [float(argument) for i in range(n)]
+        except TypeError:
+            arg = (
+                (argument[0], argument[0])
+                if len(argument) == 1
+                else argument[0:n]
+            )
+    return arg
 
+    
 
 
 
