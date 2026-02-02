@@ -15,7 +15,7 @@ import rasterio
 
 from rastertool.functions import get_dataset_opener, read, set_nodata, output, out
 
-from scipy.ndimage import convolve
+from scipy.ndimage import convolve,percentile_filter
 
 
 def create_kernel(width, deleted=False):
@@ -170,7 +170,7 @@ def _focal_nonlinear(values, valid_mask, kernel, stat, mode, cval=0.0):
 
 def _focal_var_fast(values, valid_mask, kernel, mode, cval=0.0, count=None):
     """
-    高性能 focal std（O(1) 滑窗）
+    高性能 focal var（O(1) 滑窗）
     """
 
     # 只在 valid 区域保留值
@@ -191,13 +191,94 @@ def _focal_var_fast(values, valid_mask, kernel, mode, cval=0.0, count=None):
     # 数值安全（浮点误差可能导致负数）
     var = np.maximum(var, 0)
     
-    return var, count
+    return var
 
-   
+
+    
+def _focal_perc_fast(values, valid_mask, kernel, mode,
+                     cval=0.0, count=None, q=50):
+
+    footprint = kernel.astype(bool)
+
+    dtype = values.dtype
+    if np.issubdtype(dtype, np.integer):
+        info = np.iinfo(dtype)
+    else:
+        info = np.finfo(dtype)
+
+    fill = info.min
+
+    # 1. 无效值 → 最小值
+    arr = np.where(valid_mask, values, fill)
+
+    # 2. 计数
+    if count is None:
+        count = convolve(valid_mask, kernel, mode=mode, cval=cval)
+
+    # 3. 等效分位数修正
+    num = kernel.sum()
+    qx = 100 * (count * q / 100 + (num - count)) / num
+
+    # 4. focal percentile
+    result = percentile_filter(
+        arr,
+        percentile=qx,
+        footprint=footprint,
+        mode=mode,
+        cval=fill
+    )
+
+    return result
+    
+    
+    
+def _focal_max(values, valid_mask, kernel, mode, cval=0.0):
+    return _focal_nonlinear(values, valid_mask, kernel, stat='max', mode=mode, cval=cval)
+    
+    
+
+def _focal_min(values, valid_mask, kernel, mode, cval=0.0):
+    return _focal_nonlinear(values, valid_mask, kernel, stat='mix', mode=mode, cval=cval)
+
+
+def _focal_sum(values, valid_mask, kernel, mode, cval=0.0):
+    return convolve(values, kernel, mode=mode, cval=cval)
+
+
+def _focal_mean(values, valid_mask, kernel, mode, cval=0.0, count=None):
+    if count is None:
+        count = convolve(valid_mask, kernel, mode=mode, cval=cval)
+    return convolve(values, kernel, mode=mode, cval=cval) / count
+
+def _focal_count(values, valid_mask, kernel, mode, cval=0.0, count=None):
+    if count is None:
+        count = convolve(valid_mask, kernel, mode=mode, cval=cval)
+    
+    return count
+
+def _focal_var(values, valid_mask, kernel, mode, cval=0.0, count=None):
+    return _focal_var_fast(values, valid_mask, kernel, mode, cval=cval, count=count)
+
+def _focal_std(values, valid_mask, kernel, mode, cval=0.0, count=None, var=None):
+    if var is None:
+        var = _focal_var_fast(values, valid_mask, kernel, mode, cval=cval, count=count)
+    
+    return np.sqrt(var)
+
+
+def _focal_perc(values, valid_mask, kernel, mode, cval=0.0, count=None, q=50):
+    
+    return _focal_perc_fast(values, valid_mask, kernel, mode, cval=cval, count=count, q=q)
+
+
+def _focal_median(values, valid_mask, kernel, mode, cval=0.0, count=None):
+    return _focal_perc_fast(values, valid_mask, kernel, mode, cval=cval, count=count, q=50)
+
     
 def focal_tool(source, radius, stat,
                out_path=None,
                deleted=False,
+               q=50,
                mode='reflect',
                cval=0.0,
                crop=True,
@@ -207,7 +288,7 @@ def focal_tool(source, radius, stat,
                update_stats=False):
     """
     通用 focal 统计框架
-    stat: 'sum' | 'mean' | 'max' | 'min' | 'std'
+    stat: 'sum' | 'mean' | 'max' | 'min' | 'count' | 'std' | 'var'
     """
 
     # ---------- 1. kernel ----------
@@ -245,6 +326,12 @@ def focal_tool(source, radius, stat,
             result = np.sqrt(var_value)
         else:
             result = var_value
+    elif stat in ('perc', 'median'):
+        if stat == 'median':
+            q = 50
+        
+        result = _focal_perc_fast(values, valid_mask, kernel, mode, cval, sum_valid, q)
+        
 
     elif stat == 'count':
         result = sum_valid
