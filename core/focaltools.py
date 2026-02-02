@@ -7,15 +7,23 @@ Created on Sun Feb  1 10:44:58 2026
 
 
 
-import os
 import numpy as np
-import pandas as pd
-import rasterio
 
 
 from rastertool.functions import get_dataset_opener, read, set_nodata, output, out
 
 from scipy.ndimage import convolve,percentile_filter
+
+
+from scipy.ndimage import maximum_filter, minimum_filter
+
+
+FOCAL_STATS = {}
+def register_focal(name):
+    def decorator(func):
+        FOCAL_STATS[name] = func
+        return func
+    return decorator
 
 
 def create_kernel(width, deleted=False):
@@ -33,120 +41,14 @@ def create_kernel(width, deleted=False):
         DESCRIPTION.
 
     '''
-    win_size = width  # 邻域窗口大小
-    kernel = np.ones((win_size, win_size), dtype=np.float32)  # 先创建全True的21×21矩阵
+    kernel = np.ones((width, width), dtype=np.float32)  # 先创建全True的21×21矩阵
     if deleted:
         if width == 1:
             raise ValueError("width=1 时无法删除中心像元")
-        center_idx = win_size // 2  # 计算中心索引：21//2 = 10
+        center_idx = width // 2  # 计算中心索引：21//2 = 10
         kernel[center_idx, center_idx] = 0  # 核心：把中心像元置为False，剔除中心像元            
     return kernel
 
-
-
-def focal_mean(source, radius, out_path, deleted=False, mode='reflect', crop=True,
-               nodata=None, dtype=None, compress=None, update_stats=False):
-    """
-    局部邻域均值（Focal Mean）计算函数，支持忽略 NoData，
-    并可选择是否剔除中心像元，以及是否裁剪原始 NoData 区域。
-
-    Parameters
-    ----------
-    source : str or dataset
-        输入栅格数据路径或已打开的数据集对象。
-    radius : int
-        邻域窗口半径（width = radius + 1 + radius,如 3 表示 7×7，5 表示 11×11）。
-    out_path : str or None
-        输出栅格路径。
-        若为 None，则不写文件，直接返回计算结果和 profile。
-    deleted : bool, optional
-        是否剔除中心像元：
-        - False：中心像元参与均值计算（默认）
-        - True ：中心像元不参与均值计算
-    mode : str, optional
-        边界扩展方式，传递给 ``scipy.ndimage.convolve``，
-        常用值包括：
-        'reflect'（默认）、'nearest'、'constant'、'mirror'、'wrap'。
-    crop : bool, optional
-        是否裁剪原始 NoData 区域。
-        - True（默认）：输出结果在原始 NoData 像元位置仍为 NoData，
-          即只对原始有效像元位置输出均值结果。
-        - False：只要邻域内存在有效像元，就计算均值；
-          仅当邻域内完全没有有效像元时，结果才为 NoData。
-    nodata : optional
-        输出栅格的 NoData 值。
-        若为 None，则沿用输入数据的 NoData。
-    dtype : optional
-        输出栅格的数据类型。
-        若为 None，则沿用输入数据类型。
-    compress : optional
-        输出栅格的压缩方式（如 'lzw'）。
-        若为 None，则沿用输入 profile 中的设置。
-    update_stats : bool, optional
-        写出文件时是否更新统计信息。
-
-    Returns
-    -------
-    dest : ndarray
-        计算得到的局部均值数组（当 out_path 为 None 时返回）。
-    profile : dict
-        更新后的栅格 profile（当 out_path 为 None 时返回）。
-
-    Notes
-    -----
-    - 本函数采用“mask + 卷积”的方式计算邻域均值：
-      仅对有效像元参与统计。
-    - ``crop`` 参数用于控制输出结果是否严格受原始 NoData 掩膜约束：
-      * ``crop=True`` 适用于保持原始数据覆盖范围不变的场景；
-      * ``crop=False`` 适用于希望对 NoData 边缘进行邻域扩展计算的场景。
-    - 当邻域内不存在任何有效像元时，输出结果为 NoData。
-    """
-
-    
-    # 1. 构建邻域卷积核（全 1 矩阵，可选去中心像元）
-    width = radius + 1 + radius
-    kernel = create_kernel(width, deleted)
-
-    
-    # 2. 读取栅格数据（masked=True 表示 NoData 会进入 mask）
-    data, profile = read(source, masked=True)
-
-    
-    # 3. 构造有效像元掩膜和数值数组
-    #    valid_mask : 有效像元为 1，无效为 0
-    #    data_values: NoData 填 0，不影响后续求和
-    valid_mask = (~data.mask).astype(np.uint8)
-    data_values = data.filled(0)
-
-    
-    # 4. 卷积统计
-    #    sum_valid : 邻域内有效像元数量
-    #    sum_value : 邻域内有效像元值的总和
-    sum_valid = convolve(valid_mask, kernel, mode=mode)
-    sum_value = convolve(data_values, kernel, mode=mode)
-
-    
-    # 5. 计算局部均值
-    #    使用 np.maximum(sum_valid, 1) 防止除以 0
-    mean_value = sum_value / np.maximum(sum_valid, 1)
-
-    
-    
-    if crop:  # 使用源数据掩膜
-        mask = data.mask
-    else:  # 当邻域内没有任何有效像元时，标记为 NoData
-        mask = sum_valid == 0
-
-    
-    # 6. 处理输出的 NoData、数据类型与 profile
-    output(out_path, mean_value, mask, profile, nodata, dtype, compress, update_stats)
-    
-    
-
-    
-
-
-from scipy.ndimage import maximum_filter, minimum_filter
 
 def _focal_nonlinear(values, valid_mask, kernel, stat, mode, cval=0.0):
 
@@ -191,7 +93,7 @@ def _focal_var_fast(values, valid_mask, kernel, mode, cval=0.0, count=None):
     # 数值安全（浮点误差可能导致负数）
     var = np.maximum(var, 0)
     
-    return var
+    return var, count
 
 
     
@@ -215,9 +117,10 @@ def _focal_perc_fast(values, valid_mask, kernel, mode,
     if count is None:
         count = convolve(valid_mask, kernel, mode=mode, cval=cval)
 
-    # 3. 等效分位数修正
-    num = kernel.sum()
-    qx = 100 * (count * q / 100 + (num - count)) / num
+    # 3. 等效分位数修正  
+    # num = kernel.sum()
+    # qx = 100 * (count * q / 100 + (num - count)) / num
+    qx = q
 
     # 4. focal percentile
     result = percentile_filter(
@@ -228,129 +131,292 @@ def _focal_perc_fast(values, valid_mask, kernel, mode,
         cval=fill
     )
 
-    return result
-    
-    
-    
-def _focal_max(values, valid_mask, kernel, mode, cval=0.0):
-    return _focal_nonlinear(values, valid_mask, kernel, stat='max', mode=mode, cval=cval)
-    
+    return result, count
     
 
-def _focal_min(values, valid_mask, kernel, mode, cval=0.0):
-    return _focal_nonlinear(values, valid_mask, kernel, stat='mix', mode=mode, cval=cval)
 
 
-def _focal_sum(values, valid_mask, kernel, mode, cval=0.0):
-    return convolve(values, kernel, mode=mode, cval=cval)
 
-
-def _focal_mean(values, valid_mask, kernel, mode, cval=0.0, count=None):
-    if count is None:
-        count = convolve(valid_mask, kernel, mode=mode, cval=cval)
-    return convolve(values, kernel, mode=mode, cval=cval) / count
-
-def _focal_count(values, valid_mask, kernel, mode, cval=0.0, count=None):
-    if count is None:
-        count = convolve(valid_mask, kernel, mode=mode, cval=cval)
+@register_focal("max")
+def focal_max(values, valid_mask, kernel, *, mode, cval, cache):
     
-    return count
-
-def _focal_var(values, valid_mask, kernel, mode, cval=0.0, count=None):
-    return _focal_var_fast(values, valid_mask, kernel, mode, cval=cval, count=count)
-
-def _focal_std(values, valid_mask, kernel, mode, cval=0.0, count=None, var=None):
-    if var is None:
-        var = _focal_var_fast(values, valid_mask, kernel, mode, cval=cval, count=count)
+    if 'max' not in cache:
+        
+        cache['max'] = _focal_nonlinear(values, valid_mask, kernel, stat='max', mode=mode, cval=cval)
+    return cache['max'] 
     
-    return np.sqrt(var)
-
-
-def _focal_perc(values, valid_mask, kernel, mode, cval=0.0, count=None, q=50):
+@register_focal("min")
+def focal_min(values, valid_mask, kernel, *, mode, cval, cache):
     
-    return _focal_perc_fast(values, valid_mask, kernel, mode, cval=cval, count=count, q=q)
+    if 'min' not in cache:
+        
+        cache['min'] = _focal_nonlinear(values, valid_mask, kernel, stat='min', mode=mode, cval=cval)
+    return cache['min'] 
 
-
-def _focal_median(values, valid_mask, kernel, mode, cval=0.0, count=None):
-    return _focal_perc_fast(values, valid_mask, kernel, mode, cval=cval, count=count, q=50)
-
+@register_focal("sum")
+def focal_sum(values, valid_mask, kernel, *, mode, cval, cache):
     
-def focal_tool(source, radius, stat,
-               out_path=None,
-               deleted=False,
-               q=50,
-               mode='reflect',
-               cval=0.0,
-               crop=True,
-               nodata=None,
-               dtype=None,
-               compress=None,
-               update_stats=False):
+    if 'sum' not in cache:
+        
+        cache["sum"] = convolve(values, kernel, mode=mode, cval=cval)
+    
+    return cache["sum"]
+        
+        
+
+@register_focal("mean")
+def focal_mean(values, valid_mask, kernel, *, mode, cval, cache):
+    
+    if 'mean' not in cache:
+        count = focal_count(values, valid_mask, kernel, mode=mode, cval=cval, cache=cache)
+        sum = focal_sum(values, valid_mask, kernel, mode=mode, cval=cval, cache=cache)
+        cache["mean"] = sum / np.maximum(count, 1)
+        
+    return cache["mean"]
+
+
+@register_focal("count")
+def focal_count(values, valid_mask, kernel, *, mode, cval, cache):
+    if "count" not in cache:
+        cache["count"] = convolve(valid_mask.astype('uint8'), kernel, mode=mode, cval=cval)
+    return cache["count"]
+
+
+@register_focal("var")
+def focal_var(values, valid_mask, kernel, *, mode, cval, cache):
+    if "var" not in cache:
+        count = focal_count(values, valid_mask, kernel, mode=mode, cval=cval, cache=cache)
+        cache["var"], _ = _focal_var_fast(
+            values, valid_mask, kernel, mode, cval, count
+        )
+    return cache["var"]
+
+
+@register_focal("std")
+def focal_std(values, valid_mask, kernel, *, mode, cval, cache):
+    
+    if 'std' not in cache:
+        var = focal_var(
+            values, valid_mask, kernel, mode=mode, cval=cval, cache=cache
+        )
+        cache["std"] = np.sqrt(var)
+    
+    return cache["std"]
+        
+
+
+@register_focal("perc")
+def focal_perc(values, valid_mask, kernel, *, mode, cval, cache, q=50):
+    key = f"perc_{q}"
+    if key not in cache:
+        count = focal_count(values, valid_mask, kernel, mode=mode, cval=cval, cache=cache)
+        cache[key],_ =  _focal_perc_fast(
+            values, valid_mask, kernel, mode, cval,
+            count, q
+        )
+    
+    return cache[key]
+
+
+@register_focal("median")
+def focal_median(values, valid_mask, kernel, *, mode, cval, cache):
+    if "perc_50" not in cache:
+        
+        
+        count = focal_count(values, valid_mask, kernel, mode=mode, cval=cval, cache=cache)
+        
+        cache["perc_50"], _ =  _focal_perc_fast(
+            values, valid_mask, kernel, mode, cval,
+            count, q=50
+        )
+        
+    return cache["perc_50"]
+
+
+
+def focal_tool(
+    source,
+    radius,
+    stat,
+    *,
+    out_path=None,
+    deleted=False,
+    q=50 ,
+    mode="reflect",
+    cval=0.0,
+    crop=True,
+    nodata=None,
+    dtype=None,
+    compress=None,
+    update_stats=False,
+    **kwargs,
+):
+    
     """
-    通用 focal 统计框架
-    stat: 'sum' | 'mean' | 'max' | 'min' | 'count' | 'std' | 'var'
+    对输入栅格执行 focal（邻域）统计运算。
+
+    以每个像元为中心，在给定半径的邻域窗口内，
+    对所有有效像元（非 NoData）计算指定的统计量。
+
+    Parameters
+    ----------
+    source : str or raster-like
+        输入栅格数据源。可以是文件路径，或 rastertool 支持的数据集对象。
+        读取时将以 masked=True 的方式加载，NoData 会被自动识别。
+
+    radius : int
+        邻域半径（像元单位）。
+        实际窗口大小为：
+            (2 * radius + 1) × (2 * radius + 1)
+
+    stat : str or callable
+        要计算的邻域统计量。
+        
+        - str：内置统计名称之一：
+            - "count"   : 有效像元数量
+            - "sum"     : 邻域和
+            - "mean"    : 邻域均值
+            - "min"     : 邻域最小值
+            - "max"     : 邻域最大值
+            - "var"     : 邻域方差（总体方差）
+            - "std"     : 邻域标准差
+            - "perc"    : 邻域分位数（由参数 q 指定）
+            - "median"  : 邻域中位数（等价于 perc, q=50）
+
+        - callable：
+            自定义统计函数，签名需与内置 focal 函数一致：
+            func(values, valid_mask, kernel, *, mode, cval, cache, **kwargs)
+
+    out_path : str, optional
+        输出栅格路径。
+        - 若为 None，则返回内存结果
+        - 若提供路径，则写出为栅格文件
+
+    deleted : bool, default False
+        是否在邻域计算中删除中心像元。
+        
+        - False：中心像元参与统计（默认）
+        - True ：中心像元不参与统计（常用于邻域对比、空间自相关分析）
+
+    q : int or float, default 50
+        分位数参数，仅在 stat="perc" 或使用分位数统计时有效。
+        取值范围通常为 [0, 100]。
+
+    mode : str, default "reflect"
+        边界处理方式，直接传递给 scipy.ndimage 的卷积/滤波函数。
+        常见取值：
+            - "reflect"
+            - "nearest"
+            - "constant"
+            - "mirror"
+            - "wrap"
+
+    cval : float, default 0.0
+        当 mode="constant" 时，边界填充值。
+
+    crop : bool, default True
+        输出 mask（NoData 区域）控制方式：
+
+        - True：
+            输出栅格的 mask 与输入栅格完全一致，
+            不因邻域中无有效像元而扩展 NoData 区域。
+
+        - False：
+            若某像元邻域内无任何有效值（count == 0），
+            则该像元输出为 NoData。
+
+    nodata : number, optional
+        输出栅格的 NoData 值。
+        若为 None，则沿用输入栅格或 profile 中的设置。
+
+    dtype : numpy dtype, optional
+        输出栅格的数据类型。
+        若为 None，则自动推断或沿用输入类型。
+
+    compress : str or dict, optional
+        输出栅格的压缩方式，例如：
+            - "lzw"
+            - "deflate"
+        或 rasterio 风格的压缩参数字典。
+
+    update_stats : bool, default False
+        是否在写出栅格时更新统计信息（min / max / mean 等）。
+
+    **kwargs :
+        传递给具体统计函数的额外参数。
+        例如：
+            - 自定义统计所需的额外控制参数
+
+    Returns
+    -------
+    output : raster-like or ndarray
+        若 out_path 为 None：
+            返回计算结果数组（或 rastertool 的内存对象）
+        若 out_path 提供：
+            返回写出后的输出对象
+
+    Notes
+    -----
+    1. 所有统计均仅基于邻域内的有效像元（NoData 不参与计算）
+    2. 内部使用 cache 机制，避免重复计算邻域 count、sum 等中间量
+    3. 方差使用总体方差定义（除以 N，而非 N-1）
+    4. 分位数统计对 NoData 做了等效分位数修正，
+       行为与 ArcGIS / GRASS GIS 保持一致
     """
+    
+    
+    
+    # ---------- kernel ----------
+    kernel = create_kernel(radius * 2 + 1, deleted)
 
-    # ---------- 1. kernel ----------
-    width = radius * 2 + 1
-    kernel = create_kernel(width, deleted)
-
-    # ---------- 2. read data ----------
+    # ---------- read ----------
     data, profile = read(source, masked=True)
-
-    valid_mask = ~data.mask
+    valid_mask = (~data.mask).astype('uint8')
     values = data.filled(0)
-    
-    
-    sum_valid = convolve(valid_mask, kernel, mode=mode, cval=cval)
-    # ---------- 3. 统计 ----------
-    if stat in ('sum', 'mean'):
-        
-        sum_value = convolve(values, kernel, mode=mode, cval=cval)
 
-        if stat == 'sum':
-            result = sum_value
-        else:
-            result = sum_value / np.maximum(sum_valid, 1)
+    # ---------- cache ----------
+    cache = {}
+    # cache["count"] = convolve(valid_mask, kernel, mode=mode, cval=cval)
 
-    elif stat in ('max', 'min'):
-        result = _focal_nonlinear(
-            values, valid_mask, kernel, stat, mode, cval
-        )
-    elif stat in('std', 'var'):
-        var_value, _ = _focal_var_fast(
-            values, valid_mask, kernel, mode, cval, sum_valid
-        )
-        
-        if stat == 'std':
-            result = np.sqrt(var_value)
-        else:
-            result = var_value
-    elif stat in ('perc', 'median'):
-        if stat == 'median':
-            q = 50
-        
-        result = _focal_perc_fast(values, valid_mask, kernel, mode, cval, sum_valid, q)
-        
-
-    elif stat == 'count':
-        result = sum_valid
-        
-
+    # ---------- dispatch ----------
+    if stat in FOCAL_STATS:
+        func = FOCAL_STATS[stat]
+    elif callable(stat):
+        func = stat
     else:
-        raise ValueError(f"Unsupported stat: {stat}")
+        raise ValueError(
+            f"Unknown stat '{stat}', must be one of {list(FOCAL_STATS.keys())} or callable"
+        )
 
-    # ---------- 4. mask ----------
+    result = func(
+        values,
+        valid_mask,
+        kernel,
+        mode=mode,
+        cval=cval,
+        cache=cache,
+        q=q,
+        **kwargs,
+    )
+
+    # ---------- mask ----------
     if crop:
         mask = data.mask
     else:
-        mask = sum_valid == 0
+        mask = focal_count(values, valid_mask, kernel, mode=mode, cval=cval, cache=cache) == 0
 
-    # ---------- 5. output ----------
+    # ---------- output ----------
     return output(
-        out_path, result, mask, profile,
-        nodata, dtype, compress, update_stats
+        out_path,
+        result,
+        mask,
+        profile,
+        nodata,
+        dtype,
+        compress,
+        update_stats,
     )
+
 
     
     
