@@ -9,8 +9,8 @@ Created on Sun Feb  1 10:44:58 2026
 
 import numpy as np
 
-from rastertool.core._focaltools import percentile_filter_array_q
-from rastertool.functions import get_dataset_opener, read, set_nodata, output, out
+# from rastertool.core._focaltool import percentile_filter_array_q
+from rastertool.functions import read, output
 
 from scipy.ndimage import convolve,percentile_filter
 
@@ -282,7 +282,7 @@ def focal_median(values, valid_mask, kernel, *, mode, cval, cache):
 
 
 
-def focal_tool(
+def focaltool(
     source,
     radius,
     stat,
