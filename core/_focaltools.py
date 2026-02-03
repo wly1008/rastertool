@@ -84,7 +84,32 @@ def _idx_dispatch(i, n, mode):
         return i % n
 
 
+# =========================
+# footprint → offsets
+# =========================
 
+@njit
+def footprint_to_offsets(footprint):
+    fh, fw = footprint.shape
+    rh, rw = fh // 2, fw // 2
+
+    cnt = 0
+    for i in range(fh):
+        for j in range(fw):
+            if footprint[i, j]:
+                cnt += 1
+
+    offsets = np.empty((cnt, 2), np.int64)
+
+    k = 0
+    for i in range(fh):
+        for j in range(fw):
+            if footprint[i, j]:
+                offsets[k, 0] = i - rh
+                offsets[k, 1] = j - rw
+                k += 1
+
+    return offsets
 @njit(parallel=True)
 def percentile_filter_array_q(
     input,
@@ -145,54 +170,46 @@ def percentile_filter_array_q(
     - 该函数假设 input 为二维数组。
     """
     h, w = input.shape
-    fh, fw = footprint.shape
-    rh, rw = fh // 2, fw // 2
+
+    offsets = footprint_to_offsets(footprint)
+    n_offsets = offsets.shape[0]
 
     out = np.empty_like(input)
-    max_n = fh * fw
     q_is_scalar = np.ndim(percentile) == 0
 
     for i in prange(h):
-        buf = np.empty(max_n, input.dtype)  # 每个prange一个buf
-        for j in range(w):
-            n = 0
+        buf = np.empty(n_offsets, input.dtype)
 
-            if mode == 4:  # constant 特殊处理
-                for di in range(-rh, rh + 1):
-                    for dj in range(-rw, rw + 1):
-                        if not footprint[di + rh, dj + rw]:
-                            continue
-                        ii = i + di
-                        jj = j + dj
-                        if ii < 0 or ii >= h or jj < 0 or jj >= w:
-                            buf[n] = cval
-                        else:
-                            buf[n] = input[ii, jj]
-                        n += 1
+        for j in range(w):
+            if mode == 4:  # constant
+                for k in range(n_offsets):
+                    di = offsets[k, 0]
+                    dj = offsets[k, 1]
+
+                    ii = i + di
+                    jj = j + dj
+
+                    if ii < 0 or ii >= h or jj < 0 or jj >= w:
+                        buf[k] = cval
+                    else:
+                        buf[k] = input[ii, jj]
             else:
-                for di in range(-rh, rh + 1):
-                    for dj in range(-rw, rw + 1):
-                        if not footprint[di + rh, dj + rw]:
-                            continue
-                        ii = _idx_dispatch(i + di, h, mode)
-                        jj = _idx_dispatch(j + dj, w, mode)
-                        buf[n] = input[ii, jj]
-                        n += 1
+                for k in range(n_offsets):
+                    di = offsets[k, 0]
+                    dj = offsets[k, 1]
+
+                    ii = _idx_dispatch(i + di, h, mode)
+                    jj = _idx_dispatch(j + dj, w, mode)
+
+                    buf[k] = input[ii, jj]
 
             q = percentile if q_is_scalar else percentile[i, j]
-            if q <= 0.0:
-                k = 0
-            elif q >= 100.0:
-                k = n - 1
-            else:
-                k = int((q / 100.0) * (n - 1))
+            kk = int((q / 100.0) * (n_offsets - 1))
 
-            tmp = buf[:n]
-            np.partition(tmp, k)
-            out[i, j] = tmp[k]
+            np.partition(buf, kk)
+            out[i, j] = buf[kk]
 
     return out
-
 
 
 
