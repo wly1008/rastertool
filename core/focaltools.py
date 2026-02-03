@@ -15,7 +15,7 @@ from rastertool.functions import get_dataset_opener, read, set_nodata, output, o
 from scipy.ndimage import convolve,percentile_filter
 
 
-from scipy.ndimage import maximum_filter, minimum_filter
+from scipy.ndimage import maximum_filter, minimum_filter,generic_filter
 
 
 FOCAL_STATS = {}
@@ -118,9 +118,9 @@ def _focal_perc_fast(values, valid_mask, kernel, mode,
         count = convolve(valid_mask, kernel, mode=mode, cval=cval)
 
     # 3. 等效分位数修正  
-    # num = kernel.sum()
-    # qx = 100 * (count * q / 100 + (num - count)) / num
-    qx = q
+    num = kernel.sum()
+    qx = 100 * (count * q / 100 + (num - count)) / num
+    # qx = q
 
     # 4. focal percentile
     result = percentile_filter(
@@ -132,8 +132,55 @@ def _focal_perc_fast(values, valid_mask, kernel, mode,
     )
 
     return result, count
+
     
 
+def is_num_dtype(values, dtype='float64'):
+    try:
+        return np.dtype(values.dtype) == np.dtype(dtype)
+    except Exception:
+        return False
+from functools import partial
+def _focal_perc(values, valid_mask, kernel, mode,
+                     cval=0.0, q=50):
+    footprint = kernel.astype(bool)
+    percentile = partial(np.percentile, q=q, method='nearest')
+    
+    if np.dtype(values.dtype).kind != "f":
+        
+        values = np.asarray(values, dtype='float32')
+        
+    
+    arr = np.where(valid_mask, values, np.nan)
+    
+    def func(window):
+        vals = window[~np.isnan(window)]
+        if vals.size == 0:
+            return np.nan
+        
+        return percentile(vals)
+    
+    
+    result = generic_filter(
+        arr,
+        function=func,
+        footprint=footprint,
+        mode=mode,
+        cval=np.nan,
+    )
+    
+    
+    
+    return result
+
+        
+        
+    
+    
+    
+    
+    
+    
 
 
 
@@ -209,11 +256,10 @@ def focal_std(values, valid_mask, kernel, *, mode, cval, cache):
 def focal_perc(values, valid_mask, kernel, *, mode, cval, cache, q=50):
     key = f"perc_{q}"
     if key not in cache:
-        count = focal_count(values, valid_mask, kernel, mode=mode, cval=cval, cache=cache)
-        cache[key],_ =  _focal_perc_fast(
-            values, valid_mask, kernel, mode, cval,
-            count, q
-        )
+        cache[key] =  _focal_perc(values, valid_mask, kernel, mode, cval, q)   
+        # count = focal_count(values, valid_mask, kernel, mode=mode, cval=cval, cache=cache)
+        # cache[key],_ =  _focal_perc_fast(values, valid_mask, kernel, mode, cval, count, q)
+        
     
     return cache[key]
 
@@ -223,12 +269,10 @@ def focal_median(values, valid_mask, kernel, *, mode, cval, cache):
     if "perc_50" not in cache:
         
         
-        count = focal_count(values, valid_mask, kernel, mode=mode, cval=cval, cache=cache)
         
-        cache["perc_50"], _ =  _focal_perc_fast(
-            values, valid_mask, kernel, mode, cval,
-            count, q=50
-        )
+        cache["perc_50"]=  _focal_perc(values, valid_mask, kernel, mode, cval, q=50)
+        # count = focal_count(values, valid_mask, kernel, mode=mode, cval=cval, cache=cache)
+        # cache["perc_50"], _ =  _focal_perc_fast(values, valid_mask, kernel, mode, cval,count, q=50)
         
     return cache["perc_50"]
 
@@ -360,8 +404,8 @@ def focal_tool(
     1. 所有统计均仅基于邻域内的有效像元（NoData 不参与计算）
     2. 内部使用 cache 机制，避免重复计算邻域 count、sum 等中间量
     3. 方差使用总体方差定义（除以 N，而非 N-1）
-    4. 分位数统计对 NoData 做了等效分位数修正，
-       行为与 ArcGIS / GRASS GIS 保持一致
+
+       
     """
     
     
