@@ -15,25 +15,18 @@
 
 python 3.13.11
 
-``gdal``                    3.11.4
-
-``rasterio ``            1.4.3
-
-``geopandas ``           1.1.2
-
-``scipy``                1.17.0
-
-``shapely ``             2.1.2
-
-``xarray  ``             2025.12.0
-
-``pyproj  ``             3.7.2
-
-
-
-``opencv-python ``            4.13.0.90  
-
-``tqdm ``                4.67.1
+``opencv-python``    -> 4.13.0.90
+``geopandas``        -> 1.1.2
+``numba``            -> 0.63.1
+``numpy``            -> 2.3.5
+``pandas``           -> 3.0.0
+``pyproj``           -> 3.7.2
+``pytest``           -> 9.0.2
+``rasterio``         -> 1.4.3
+``scipy``            -> 1.17.0
+``shapely``          -> 2.1.2
+``tqdm``             -> 4.67.1
+``xarray``           -> 2025.12.0
 
 
 
