@@ -289,7 +289,7 @@ def focaltool(
     *,
     out_path=None,
     deleted=False,
-    q=50 ,
+    q=50,
     mode="reflect",
     cval=0.0,
     crop=True,
