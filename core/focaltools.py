@@ -9,7 +9,7 @@ Created on Sun Feb  1 10:44:58 2026
 
 import numpy as np
 
-
+from rastertool.core._focaltools import percentile_filter_array_q
 from rastertool.functions import get_dataset_opener, read, set_nodata, output, out
 
 from scipy.ndimage import convolve,percentile_filter
@@ -48,6 +48,10 @@ def create_kernel(width, deleted=False):
         center_idx = width // 2  # 计算中心索引：21//2 = 10
         kernel[center_idx, center_idx] = 0  # 核心：把中心像元置为False，剔除中心像元            
     return kernel
+
+
+
+
 
 
 def _focal_nonlinear(values, valid_mask, kernel, stat, mode, cval=0.0):
