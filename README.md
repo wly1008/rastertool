@@ -17,7 +17,6 @@ python 3.13.11
 
 ``opencv-python``    -> 4.13.0.90  
 ``geopandas``        -> 1.1.2  
-``mycode``           -> (未找到版本)  
 ``numba``            -> 0.63.1  
 ``numpy``            -> 2.3.5  
 ``pandas``           -> 3.0.0  
