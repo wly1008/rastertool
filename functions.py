@@ -352,9 +352,9 @@ def modules_inspect(PKG_PATH, self=None):
     for m in sorted(modules):
         real_name = normalize_package_name(m)
         try:
-            print(f"{'``'+real_name+'``':20} -> {md.version(real_name)}")
+            print(f"{'``'+real_name+'``':20} -> {md.version(real_name)}  ")
         except Exception:
-            print(f"{'``'+real_name+'``':20} -> (未找到版本)")
+            print(f"{'``'+real_name+'``':20} -> (未找到版本)  ")
 
 
 def get_attrs(o, names):
