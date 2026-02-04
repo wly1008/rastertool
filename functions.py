@@ -72,7 +72,11 @@ def set_nodata(nodataval, dt, nodata=None, dtype=None):
                 dt = src_dt
             
             elif src_nodata is None:  # 源nodata为None，设置为0
-                warnings.warn('nodata is None, set to 0(GDAL default)')
+                warnings.warn(
+                        f'忽略nodata参数。无效值{nodataval}，不能安全的被转换为数据类型{dt}。'
+                        '可以使用 --nodata 选项来覆盖它，以获得更好的效果。恢复使用源数据的无效值。'
+                        'nodata is None, set to 0(GDAL default)'
+                        )
                 nodataval = 0
                 
             elif check_nodata_inrange(src_nodata, dt):  # 源nodata可存入dtype; 回退nodata
@@ -376,11 +380,11 @@ def get_geometry(ph_shp, crs=None):
 
 
 if __name__ == '__main__':
-    current_dir = os.path.dirname(__file__)
-    modules_inspect(current_dir)
+    # current_dir = os.path.dirname(__file__)
+    # modules_inspect(current_dir)
     
     
-    # set_nodata( None, 'uint8', np.nan)
+    set_nodata( None, 'uint8', np.nan)
     ...
     
     
