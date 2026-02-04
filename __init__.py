@@ -14,5 +14,7 @@ from rastertool.core.api import (merge_distance_weight,
                                  unify,
                                  reproject,
                                  resampling,
-                                 clip)
+                                 clip,
+                                 focaltool,
+                                 remove_outliers)
 from rastertool.core import tools
