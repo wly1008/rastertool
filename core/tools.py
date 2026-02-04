@@ -16,6 +16,7 @@ from rasterio.transform import from_origin
 
 
 
+
 def copy_raster(source, out_path,
                 nodata=None, dtype=None, compress=None,
                 update_stats=False,
