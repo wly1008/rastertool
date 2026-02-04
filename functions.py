@@ -15,9 +15,6 @@ from contextlib import  contextmanager
 import importlib.metadata as md
 
 
-
-
-
 def eq_crs(crs1, crs2):
     return CRS.from_user_input(crs1) == CRS.from_user_input(crs2)
 
@@ -138,7 +135,13 @@ def read(source,
          fill_value=None):
     dataset_opener = get_dataset_opener(source)
     with dataset_opener(source) as src:
-        arr = src.read(1, masked=masked)
+        arr = src.read(indexes, 
+                       out_shape=out_shape,
+                       window=window,
+                       masked=masked,
+                       resampling=resampling,
+                       boundless=boundless,
+                       fill_value=fill_value)
         profile = src.profile
     
     return arr, profile
@@ -156,7 +159,13 @@ def readarray(source,
     
     dataset_opener = get_dataset_opener(source)
     with dataset_opener(source) as src:
-        arr = src.read(1, masked=masked)
+        arr = src.read(indexes, 
+                       out_shape=out_shape,
+                       window=window,
+                       masked=masked,
+                       resampling=resampling,
+                       boundless=boundless,
+                       fill_value=fill_value)
     
     return arr
 
@@ -369,6 +378,32 @@ def get_geometry(ph_shp, crs=None):
 if __name__ == '__main__':
     current_dir = os.path.dirname(__file__)
     modules_inspect(current_dir)
+    
+    
+    # set_nodata( None, 'uint8', np.nan)
+    ...
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
     
     
     
