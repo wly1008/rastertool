@@ -7,17 +7,20 @@ import rasterio
 from rasterio import features
 from rasterio.enums import Resampling
 from rasterio.transform import Affine
+from rasterio.io import DatasetWriter
+from rasterio import windows
+from rasterio.windows import subdivide
 import numpy as np
 
+import math
 from rastertool.errors import NodataOverflow
 import geopandas as gpd
 import xarray as xr
 from rasterio.transform import from_origin
+from contextlib import ExitStack, contextmanager
 
 
-
-
-def copy_raster(source, out_path,
+def _copy_raster(source, out_path,
                 nodata=None, dtype=None, compress=None,
                 update_stats=False,
                 **profile_update):
@@ -26,7 +29,7 @@ def copy_raster(source, out_path,
     
     with dataset_opener(source) as src:
         data = src.read(masked=True)
-        mask = data.mask
+        mask = np.ma.getmaskarray(data)
         
         dt = src.dtypes[0]
         shape = data.shape
@@ -35,18 +38,102 @@ def copy_raster(source, out_path,
         nodata, dtype = set_nodata(nodataval, dt, nodata, dtype)
         
         
-        profile = src.profile
+        profile = src.profile.copy()
         compress = profile.get('compress', None) if compress is None else compress
         profile.update({'nodata': nodata, 'dtype': dtype, 'compress':compress})
         profile.update(profile_update)
         
-    
+    ### nodata与dtype转换
     dest = np.empty(shape, dtype=dtype)
     np.copyto(dest, data, where=~mask)
     np.copyto(dest, nodata, where=mask)
     
-    out(out_path, dest, profile, update_stats=update_stats)
+    ### 输出
+    with rasterio.open(out_path, 'w', **profile) as dst:
+        
+        dst.write(dest)
+        if update_stats:
+            dst.update_stats()  # raserio >= 1.4.0
 
+
+def value_equal(a, b):
+    try:
+        if np.isnan(a) and np.isnan(b):
+            return True
+    except Exception:
+        pass
+    return bool(a == b)
+
+
+
+def copy_raster(source, dst_path,
+                nodata=None, dtype=None, compress=None,
+                update_stats=False,
+                mem_limit=64, 
+                **profile_update):
+    '''拷贝栅格，可计算统计量与更新元数据'''
+    dataset_opener = get_dataset_opener(source)
+    
+    with ExitStack() as exit_stack:
+        src =  dataset_opener(source) 
+        exit_stack.enter_context(src)
+        
+        count, height, width = src.count, src.height, src.width
+        
+        # 数据类型与无效值方案
+        dt = src.dtypes[0]
+        nodataval = src.nodatavals[0]
+        
+        nodata, dtype = set_nodata(nodataval, dt, nodata, dtype)
+        
+
+        # 更新profile
+        profile = src.profile.copy()
+        compress = profile.get('compress', None) if compress is None else compress
+        profile.update({'nodata': nodata, 'dtype': dtype, 'compress':compress})
+        profile.update(profile_update)
+        
+        # 创建输出对象
+        dst = rasterio.open(dst_path, "w", **profile)
+        exit_stack.enter_context(dst)
+        
+        
+        # 计算分块情况
+        dout_window = windows.Window(0, 0, width, height)
+        max_pixels = mem_limit * 1.0e6 / (np.dtype(dtype).itemsize * count)
+
+        if width * height < max_pixels:
+            chunks = [dout_window]
+        else:
+            n = max(1, math.floor(math.sqrt(max_pixels)))
+            chunks = subdivide(dout_window, n, n)
+        
+        change = not (value_equal(nodata, nodataval) and dtype == dt)
+        # 分块写出
+        for chunk in chunks:
+            
+            
+            if change:
+                # 数据与掩膜读取
+                data = src.read(window=chunk)
+                mask = src.read_masks(window=chunk) == 0
+                
+                # nodata 与 dtype 转换
+                dest = np.empty(data.shape, dtype=dtype)
+                np.copyto(dest, data, where=~mask)
+                np.copyto(dest, nodata, where=mask)
+                
+                # 写出
+                dst.write(dest, window=chunk)
+            else:
+                dst.write(src.read(window=chunk), window=chunk)
+        
+        # 计算统计量
+        if update_stats:
+            dst.update_stats()  # raserio >= 1.4.0
+            
+            
+            
 
 def build_overviews(source, level=4, how=Resampling.nearest):
     '''构建栅格金字塔'''
