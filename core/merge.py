@@ -29,7 +29,7 @@ from rasterio.transform import Affine
 # from rasterio.windows import subdivide
 
 logger = logging.getLogger(__name__)
-
+#From rasterio.merge
 def spatial_union(sources):
     '''Calculate the union of the spaces and return the bounds'''
     
@@ -66,7 +66,7 @@ def spatial_union(sources):
     dst_w, dst_s, dst_e, dst_n = min(xs), min(ys), max(xs), max(ys)
     return dst_w, dst_s, dst_e, dst_n
 
-
+#From rasterio.merge
 def _intersect_bounds(bounds1, bounds2, transform):
     """Based on gdal_merge.py."""
     int_w = max(bounds1[0], bounds2[0])
@@ -88,7 +88,7 @@ def _intersect_bounds(bounds1, bounds2, transform):
             raise ValueError
 
     return int_w, int_s, int_e, int_n
-
+#From rasterio.merge
 def win_align(window):
     """Equivalent to rounding both offsets and lengths.
 
