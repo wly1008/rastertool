@@ -10,7 +10,6 @@ import rasterio
 from rasterio.enums import Resampling
 from rasterio.transform import from_origin
 from rasterio.coords import disjoint_bounds
-from rasterio.crs import CRS
 from rasterio.windows import Window
 from rasterio.warp import transform_bounds
 from rasterio.transform import from_bounds
@@ -27,10 +26,10 @@ from shapely.geometry import box
 
 
 from rastertool.warnings import SetNodataWarning, SetRasterAttrWarning
+from rastertool.functions import eq_crs
 
 
-def eq_crs(crs1, crs2):
-    return CRS.from_user_input(crs1) == CRS.from_user_input(crs2)
+
 
 def bounds_intersection(bounds1, bounds2):
     box1 = box(*bounds1)  # 创建第一个矩形
@@ -479,6 +478,7 @@ def clip(raster_in, dst_in=None, out_path=None,
                 stacklevel=stacklevel,
                 )
         # TODO
+        eq_crs(crs, src.crs)
         if crop:
             if not eq_crs(crs, src.crs):
                 raise ValueError('crop 仅支持在相同空间参考中数组使用')

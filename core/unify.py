@@ -46,6 +46,7 @@ def unify(raster_in,dst_in=None,out_path=None,
           Triple=False,
           how='nearest',
           crop=True, arr_crop=None,crop_use_index=None,
+          creation_options=None,
           **karges):
     '''
     
@@ -122,7 +123,8 @@ def unify(raster_in,dst_in=None,out_path=None,
     
     fHash = karges.get('fHash','')
     
-
+    if creation_options is None:
+        creation_options = {}
     
     with ExitStack() as stack:
         
@@ -162,7 +164,7 @@ def unify(raster_in,dst_in=None,out_path=None,
                         mode='round', stacklevel=stacklevel,
                         filled=True, dtype=dtype,
                         with_complement=True,
-                        ushape=False, shape=None)
+                        ushape=False, shape=None,**creation_options)
         
         
         # 预裁剪
@@ -218,12 +220,12 @@ def unify(raster_in,dst_in=None,out_path=None,
             else:
                 # 投影相同, 分辨率不同, 重采样
                 ds = reproject(src, crs=None, out_path=_temp_ph2,
-                               resolution=res, how=how, dst_nodata=nodata, dtype=dtype)
+                               resolution=res, how=how, dst_nodata=nodata, dtype=dtype,**creation_options)
         else:
             # 投影不同(只在相同投影下比较分辨率, 不同投影默认分辨率不同), 重投影+重采样, 
             if Triple:
                 ds_pj = reproject(src, crs=crs,out_path=_temp_ph2,
-                                  resolution=None, how=Resampling.nearest, dst_nodata=nodata, dtype=dtype)
+                                  resolution=None, how=Resampling.nearest, dst_nodata=nodata, dtype=dtype,**creation_options)
                 
                 delete = True  # 删除转投影、重采样生成的中间栅格
                 if keep:
@@ -237,10 +239,10 @@ def unify(raster_in,dst_in=None,out_path=None,
                 _temp_ph4 = karges.get('_temp_ph3', _temp_dir + f'\\{fHash}_res.tif')
                 ds = reproject(ds_pj_clip, crs=None,out_path=_temp_ph4,
                                resolution=res, how=how, dst_nodata=nodata, dtype=dtype,
-                               delete=delete)
+                               delete=delete, **creation_options)
             else:
                 ds = reproject(src, crs=crs,out_path=_temp_ph2,
-                               resolution=res, how=how, dst_nodata=nodata, dtype=dtype)
+                               resolution=res, how=how, dst_nodata=nodata, dtype=dtype,**creation_options)
                 
             
     if Double:
@@ -257,7 +259,7 @@ def unify(raster_in,dst_in=None,out_path=None,
     return _clip(ds, bounds=bounds,crs=crs,
                  out_path=out_path,get_ds=get_ds,
                  crop=crop,arr_crop=arr_crop,crop_use_index=crop_use_index,
-                 delete=delete
+                 delete=delete,
                  )
     
 
