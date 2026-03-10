@@ -10,10 +10,7 @@ import rasterio
 from rasterio.enums import Resampling
 from rasterio.transform import from_origin
 from rasterio.coords import disjoint_bounds
-<<<<<<< HEAD
-=======
 
->>>>>>> 77f73ff38b9060281a337e51980cd650e79739b1
 from rasterio.windows import Window
 from rasterio.warp import transform_bounds
 from rasterio.transform import from_bounds
@@ -34,45 +31,7 @@ from rastertool.functions import eq_crs
 
 
 
-<<<<<<< HEAD
-=======
-from pyproj import CRS
 
-def eq_crs(crs1, crs2):
-    crs1 = CRS.from_user_input(crs1)
-    crs2 = CRS.from_user_input(crs2)
-    
-    # 1 基准面
-    datum_equal = (
-        crs1.datum == crs2.datum
-    )
-
-    # 2 单位
-    unit_equal = (
-        crs1.axis_info[0].unit_name == crs2.axis_info[0].unit_name
-    )
-
-    # 3 投影方法
-    proj_equal = (
-        crs1.coordinate_operation.method_name ==
-        crs2.coordinate_operation.method_name
-    )
-
-    # 4 投影参数（偏移量、中央经线等）
-    params1 = {
-        p.name: p.value
-        for p in crs1.coordinate_operation.params
-    }
-
-    params2 = {
-        p.name: p.value
-        for p in crs2.coordinate_operation.params
-    }
-
-    param_equal = params1 == params2
-
-    return datum_equal and unit_equal and proj_equal and param_equal
->>>>>>> 77f73ff38b9060281a337e51980cd650e79739b1
 
 def bounds_intersection(bounds1, bounds2):
     box1 = box(*bounds1)  # 创建第一个矩形
