@@ -205,9 +205,15 @@ def out(out_path, data, profile, update_stats=False, build_overviews=False, **pr
     with rasterio.open(out_path, 'w', **profile) as dst:
         
         if data.ndim == 2:
+<<<<<<< HEAD
             dst.write(data,1)
         else:
             dst.write(data)
+=======
+            src.write(data,1)
+        else:
+            src.write(data)
+>>>>>>> 77f73ff38b9060281a337e51980cd650e79739b1
         if update_stats:
             dst.update_stats()  # raserio >= 1.4.0
             # for i in range(1,profile['count']+1):
