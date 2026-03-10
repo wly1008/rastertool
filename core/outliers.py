@@ -12,51 +12,6 @@ from functools import partial
 from rastertool.functions import readarray, set_nodata, get_dataset_opener, out
 
 
-# def _three_sigma(array,areas=None) -> np.array:
-#     '''
-#     三倍标准差剔除离散值
-
-#     Parameters
-#     ----------
-#     array : array_like
-#         可正常转为数组的元素
-#         需要操作的数组
-#     areas : TYPE, optional
-#         分区数组列表，每个元素需于数组形状相同，
-#         每个元素中的有效值（None、np.nan、False为无效值）为一个区域.
-#         （如不同的时间或地区分区剔除，不受其他区域影响）
-#         None则不分区，（默认值）
-#         The default is None.
-
-#     Returns
-#     -------
-#     arr : np.array
-#         剔除离散值后的数组
-
-#     '''
-    
-#     arr = np.array(array).astype('float64')
-    
-#     if areas is None:
-#         mean = np.nanmean(arr)
-#         std = np.nanstd(arr)
-#         arr[(arr < mean - 3 * std) | (arr > mean + 3 * std)] = np.nan
-        
-#     else:
-#         for area in areas:
-
-#             warnings.filterwarnings('ignore',category=RuntimeWarning)
-#             area = np.array(area)
-#             arrx = np.where((np.isnan(area)|(area==False)|(area==None)),np.nan,arr)
-#             mean = np.nanmean(arrx)
-#             std = np.nanstd(arrx)
-#             arr[(arrx < mean - 3 * std) | (arrx > mean + 3 * std)] = np.nan
-#         warnings.filterwarnings('default')
-
-#     return arr
-
-
-
 def threshold_from_values(value_range, *_):
     if value_range is None:
         raise ValueError('请设置有效值范围')

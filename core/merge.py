@@ -13,7 +13,7 @@ from contextlib import ExitStack
 from scipy.ndimage import distance_transform_edt
 from tqdm import tqdm
 
-from rastertool.functions import get_dataset_opener#, out
+from rastertool.functions import get_dataset_opener, eq_crs#, out
 from rastertool.errors import (
                                 MergeError,
                                 RastertoolError,
@@ -237,6 +237,7 @@ def merge_distance_weight(sources,          # 输入栅格文件列表
                           masked=False,      # 是否返回掩码数组
                           dst_path=None,     # 输出路径，存在输出路径则无返回值
                           dst_kwds=None,     # 输出参数
+                          build_overviews=False,  # 创建金子塔
                           bar_name=None):         # 进度条名称与是否显示进度条
 
     """
@@ -505,7 +506,8 @@ def merge_distance_weight(sources,          # 输入栅格文件列表
             )
         )
     
-    
+    if len(sources) == 0:
+        return
     # Create a dataset_opener object
     dataset_opener = get_dataset_opener(sources[0])
     
@@ -650,7 +652,7 @@ def merge_distance_weight(sources,          # 输入栅格文件列表
                 with dataset_opener(dataset) as src:
                     
                     # Intersect source bounds and tile bounds
-                    if first_crs != src.crs:
+                    if not eq_crs(first_crs, src.crs):
                         raise RastertoolError(f"CRS mismatch with source: {dataset}")
 
                     try:
@@ -736,6 +738,12 @@ def merge_distance_weight(sources,          # 输入栅格文件列表
                 if first_colormap:
                     dst.write_colormap(1, first_colormap)
                 dst.update_stats()   # rasterio > 1.4.0, 没有就不要了
+                if build_overviews:
+                    level = 4
+                    factors = [2**(i+1) for i in range(int(level))]
+                    how = Resampling.nearest
+                    dst.build_overviews(factors, how)
+                    dst.update_tags(ns='rio_overview', compress='lzw')
                 dst.close()
             
             

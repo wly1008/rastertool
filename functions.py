@@ -2,21 +2,23 @@
 
 import ast
 import os
+import math
 import cmath
 import warnings
 import numpy as np
 
+
 import rasterio
-from rasterio.crs import CRS
 from rasterio.enums import Resampling
 import geopandas as gpd
+from pyproj import CRS
+
 
 from contextlib import  contextmanager
 import importlib.metadata as md
 
 
-def eq_crs(crs1, crs2):
-    return CRS.from_user_input(crs1) == CRS.from_user_input(crs2)
+
 
 def check_nodata_inrange(nodata, dt):
     '''检测无效值是否在类型的范围内'''
@@ -175,7 +177,7 @@ def readarray(source,
 
 
 
-def out(out_path, data, profile, update_stats=False, **profile_update):
+def out(out_path, data, profile, update_stats=False, build_overviews=False, **profile_update):
     '''
     
     根据 profile 输出 data 至 out_path
@@ -200,18 +202,28 @@ def out(out_path, data, profile, update_stats=False, **profile_update):
     '''
     profile.update(profile_update)
 
-    with rasterio.open(out_path, 'w', **profile) as src:
+    with rasterio.open(out_path, 'w', **profile) as dst:
         
-        src.write(data)
+        if data.ndim == 2:
+            dst.write(data,1)
+        else:
+            dst.write(data)
         if update_stats:
-            src.update_stats()  # raserio >= 1.4.0
+            dst.update_stats()  # raserio >= 1.4.0
             # for i in range(1,profile['count']+1):
             #     src.statistics(i)
+        if build_overviews:
+            level = 4
+            factors = [2**(i+1) for i in range(int(level))]
+            how = Resampling.nearest
+            dst.build_overviews(factors, how)
+            dst.update_tags(ns='rio_overview', compress='lzw')
             
 
         
 def output(out_path, data, mask, profile,
-           nodata=None, dtype=None, compress=None, update_stats=None):
+           nodata=None, dtype=None, compress=None,
+           update_stats=None, build_overviews=False):
     # 6. 处理输出的 NoData、数据类型与 profile
     profile = profile.copy()
     nodataval = profile['nodata']
@@ -234,7 +246,7 @@ def output(out_path, data, mask, profile,
     if out_path is None:
         return dest, profile
     else:
-        out(out_path, dest, profile, update_stats=update_stats)
+        out(out_path, dest, profile, update_stats=update_stats, build_overviews=build_overviews)
     
 
 def tuple_process(argument, n=2):
@@ -250,7 +262,69 @@ def tuple_process(argument, n=2):
             )
     return arg
 
+
+def params_equal(p1, p2, tol=1e-9):
+    if p1.keys() != p2.keys():
+        return False
     
+    for k in p1:
+        v1 = p1[k]
+        v2 = p2[k]
+
+        if isinstance(v1, (int, float)) and isinstance(v2, (int, float)):
+            if not math.isclose(v1, v2, rel_tol=tol):
+                return False
+        else:
+            if v1 != v2:
+                return False
+    return True
+
+def eq_crs(crs1, crs2):
+    crs1 = CRS.from_user_input(crs1)
+    crs2 = CRS.from_user_input(crs2)
+    
+    if crs1.type_name != crs2.type_name:
+        return False
+    
+    
+    # 1 椭球体
+    if crs1.ellipsoid != crs2.ellipsoid:
+        return False
+
+    # 2 单位
+    if (
+        crs1.axis_info[0].unit_conversion_factor != 
+        crs2.axis_info[0].unit_conversion_factor
+    ):
+        return False
+    
+    if crs1.coordinate_operation is None:
+        return True
+
+    
+    # 3 投影方法
+    if (
+        crs1.coordinate_operation.method_code !=
+        crs2.coordinate_operation.method_code
+    ):
+        return False
+
+    # 4 投影参数（偏移量、中央经线等）
+    params1 = {
+        p.name: p.value
+        for p in crs1.coordinate_operation.params
+    }
+
+    params2 = {
+        p.name: p.value
+        for p in crs2.coordinate_operation.params
+    }
+
+    if not params_equal(params1, params2):
+        return False
+
+    return True
+ 
 
 
 
