@@ -480,7 +480,6 @@ def clip(raster_in, dst_in=None, out_path=None,
                 stacklevel=stacklevel,
                 )
         # TODO
-        eq_crs(crs, src.crs)
         if crop:
             if not eq_crs(crs, src.crs):
                 raise ValueError('crop 仅支持在相同空间参考中数组使用')
