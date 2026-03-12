@@ -19,7 +19,9 @@ class RastertoolError(Exception):
 class MergeError(RastertoolError):
     """Raised when rasters cannot be merged."""
     
-
+class ReclassError(RastertoolError):
+    """Raised when rasters cannot be reclass."""
+    
 
 
 class WindowError(RastertoolError):

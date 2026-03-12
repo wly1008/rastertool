@@ -10,15 +10,36 @@ import numpy as np
 import pandas as pd
 import rasterio
 
-from rastertool.functions import  get_dataset_opener
+from rastertool.functions import  get_dataset_opener, check_nodata_inrange
+from rastertool.errors import ReclassError
 
 def hex_to_rgba(hex_color, A=255):
-    hex_color = hex_color.lstrip('#')
+    """
+    将十六进制颜色值转换为 RGBA 元组
+    :param hex_color: 十六进制颜色字符串，支持带 # 或不带 #，如 "#FF0000"、"FF0000"、"F00"
+    :param A: 透明度值，范围 0-255，默认 255（不透明）
+    :return: (r, g, b, a) 元组，每个值范围 0-255
+    """
+    # 移除开头的 # 号，并转为大写（增强兼容性）
+    hex_color = hex_color.lstrip('#').upper()
+    
+    # 处理短格式（如 #F00 转为 #FF0000）
+    if len(hex_color) == 3:
+        hex_color = ''.join([c * 2 for c in hex_color])
+    
+    # 校验长度，避免索引越界
+    if len(hex_color) != 6:
+        raise ValueError("无效的十六进制颜色格式，请输入 6 位（或 3 位）十六进制字符串，如 #FF0000")
+    
+    # 转换为 RGB 值
     r = int(hex_color[0:2], 16)
     g = int(hex_color[2:4], 16)
     b = int(hex_color[4:6], 16)
+    
+    # 确保透明度在合法范围
+    A = max(0, min(255, A))
+    
     return (r, g, b, A)
-
 
 def build_mask(data, expr):
     
@@ -58,7 +79,7 @@ def build_mask(data, expr):
 
     
     
-def reclass(source, dest_path, new_values, old_values, 
+def reclass(source, new_values, old_values, dest_path, 
             color_list=None, color_type=None,
             dtype=None, nodata=None,
             other_to_nodata=False):
@@ -117,7 +138,7 @@ def reclass(source, dest_path, new_values, old_values,
 
         # 不支持的颜色类型
         else:
-            raise Exception('color_type 仅支持 hex 字符串与 rgba 元组格式')
+            raise ReclassError('color_type 仅支持 hex 字符串与 rgba 元组格式')
 
     else:
         # 如果没有提供颜色
@@ -163,39 +184,9 @@ def reclass(source, dest_path, new_values, old_values,
         # nodata 与 dtype 合法性检查
         # =========================
 
-        inrange = False
-
-        # 如果是整数类型
-        if np.issubdtype(dtype, np.integer):
-
-            # 获取整数类型范围
-            info = np.iinfo(dtype)
-
-            # 检查 nodata 是否在范围内
-            inrange = info.min <= nodata <= info.max
-
-        else:
-            # 浮点类型
-
-            if cmath.isfinite(nodata):
-
-                info = np.finfo(dt)
-
-                # 检查 nodata 是否在浮点范围
-                inrange = info.min <= nodata <= info.max
-
-                # 检查是否可安全转换
-                nodata_dt = np.min_scalar_type(nodata)
-
-                inrange = inrange & np.can_cast(nodata_dt, dt)
-
-            else:
-                # nodata 为 inf 或 nan
-                inrange = True
-
-        # 如果 nodata 与 dtype 不匹配
+        inrange = check_nodata_inrange(nodata, dtype)
         if not inrange:
-            raise Exception('nodata 与 dtype 不匹配')
+            raise ReclassError('nodata 与 dtype 不匹配')
 
         # =========================
         # 初始化输出数组
@@ -319,7 +310,7 @@ if __name__ == '__main__':
     color_list=color_list; color_type = 'hex'
     dtype = 'uint8'; nodata=0;
     other_to_nodata=False;
-    reclass(new_values, old_values, dest_path, color_list, color_type, dtype, nodata, other_to_nodata)
+    reclass(source, new_values, old_values, dest_path, color_list, color_type, dtype, nodata, other_to_nodata)
     
     
     
