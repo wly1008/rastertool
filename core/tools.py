@@ -3,8 +3,9 @@
 from rastertool.functions import (get_dataset_opener, out,
                                   set_nodata, check_nodata_inrange, cast_value,
                                   eq_crs)
-import rasterio
+
 import rasterio.mask
+
 from rasterio import features
 from rasterio.enums import Resampling
 from rasterio.transform import Affine
