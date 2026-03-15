@@ -76,6 +76,7 @@ def build_mask(data, expr):
 
 
 
+    
 
     
     
@@ -277,8 +278,10 @@ def reclass(source, new_values, old_values, dest_path,
 
     
     
-    
-    
+
+
+def template_grid(class_color):
+    ...
     
 if __name__ == '__main__':
     

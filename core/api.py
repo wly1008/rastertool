@@ -13,4 +13,5 @@ from rastertool.core.reclass import reclass
 from rastertool.core.merge import merge_distance_weight
 from rastertool.core.focaltool import focaltool
 from rastertool.core.outliers import remove_outliers
+from rastertool.core.colormap import colormap
 
