@@ -521,7 +521,61 @@ def mask_shp(source, mask, out_path=None,
 
 
 
+from rasterio.crs import CRS
 
+def create_test_raster(
+        output,
+        left_top_x,
+        left_top_y,
+        crs=4326,
+        resolution=0.0008983,
+):
+    """
+    创建8x8测试栅格
+    
+    Parameters
+    ----------
+    output : str
+        输出tif路径
+    left_top_x : float
+        左上角经度
+    left_top_y : float
+        左上角纬度
+    resolution : float
+        分辨率 (默认100m)
+    width : int
+        列数
+    height : int
+        行数
+    """
+
+    # 生成0-255数据
+    data = np.arange(256).reshape((1,16, 16)).astype("uint8")
+
+    # 仿射变换
+    transform = from_origin(
+        left_top_x,
+        left_top_y,
+        resolution,
+        resolution
+    )
+
+    # 坐标系 默认WGS84
+    crs = CRS.from_user_input(crs)
+
+    with rasterio.open(
+        output,
+        "w",
+        driver="GTiff",
+        height=16,
+        width=16,
+        count=1,
+        dtype="uint8",
+        crs=crs,
+        transform=transform
+    ) as dst:
+
+        dst.write(data)    
 
 
 
