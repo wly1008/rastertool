@@ -200,7 +200,7 @@ def renan(source, out_path, nodata, dtype=None, compress=None, update_stats=Fals
 
 
 
-def polygon_to_raster(shp,raster,pixel,field,
+def polygon_to_raster(shp,raster,pixel,field=None, fill_value=None,
                       crs=None,dtype='float32',nodata=-9999):
     '''
     矢量转栅格
@@ -218,9 +218,27 @@ def polygon_to_raster(shp,raster,pixel,field,
     else:
         shapefile = gpd.read_file(shp)
         crs = shapefile.crs
-    if not field in shapefile.columns:
-        raise Exception ('输出字段不存在')
-    shapefile[field] = shapefile[field].astype(dtype)
+    
+    if field is None:
+        
+        values = np.asarray(shapefile.index)
+    else:
+        if not field in shapefile.columns:
+            raise Exception ('输出字段不存在')
+        values = np.asarray(shapefile[field])
+    
+    if fill_value is not None:
+        values = np.full_like(values, fill_value=fill_value)
+    
+    
+    if dtype is None:
+        dtype = values.dtype
+    else:
+        dtype = np.dtype(dtype)
+        
+    assert np.issubdtype(dtype, np.number)
+    values = values.astype(dtype)
+     
 
     bound = shapefile.bounds
     width = int((bound.get('maxx').max()-bound.get('minx').min())/pixel)
@@ -239,10 +257,10 @@ def polygon_to_raster(shp,raster,pixel,field,
 
     with rasterio.open(raster, 'w+', **meta) as out:
         out_arr = out.read(1)
-        shapes = ((geom,value) for geom, value in zip(shapefile.get('geometry'), shapefile.get(field)))
+        shapes = ((geom,value) for geom, value in zip(shapefile.get('geometry'), values))
         burned = features.rasterize(shapes=shapes, fill=nodata, out=out_arr, transform=out.transform)
         out.write_band(1, burned)
-        out.statistics(1, clear_cache=True)
+        out.stats()
 
 
 
