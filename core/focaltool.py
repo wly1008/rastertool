@@ -26,7 +26,7 @@ def register_focal(name):
     return decorator
 
 
-def create_kernel(width, deleted=False):
+def Rectangle_kernel(width, deleted=False):
     '''
     创建邻域卷积核，可选择是否去除中心像元（用于 focal 统计）
 
@@ -51,6 +51,43 @@ def create_kernel(width, deleted=False):
 
 
 
+def Round_kernel(width, deleted=False):
+    '''
+    创建圆形邻域卷积核，可选择是否去除中心像元
+
+    Parameters
+    ----------
+    width : int
+        核大小（必须为奇数）
+    deleted : bool
+        是否删除中心像元
+
+    Returns
+    -------
+    kernel : np.ndarray
+        圆形卷积核
+    '''
+    
+    if width % 2 == 0:
+        raise ValueError("width 必须为奇数")
+
+    radius = width // 2
+
+    # 创建坐标网格
+    y, x = np.ogrid[-radius:radius+1, -radius:radius+1]
+
+    # 圆形掩膜（关键）
+    mask = x**2 + y**2 <= radius**2
+
+    kernel = mask.astype(np.float32)
+
+    # 是否删除中心像元
+    if deleted:
+        if width == 1:
+            raise ValueError("width=1 时无法删除中心像元")
+        kernel[radius, radius] = 0
+
+    return kernel
 
 
 
@@ -290,6 +327,7 @@ def focaltool(
     out_path=None,
     deleted=False,
     q=50,
+    Round=True,
     mode="reflect",
     cval=0.0,
     crop=True,
@@ -415,7 +453,10 @@ def focaltool(
     
     
     # ---------- kernel ----------
-    kernel = create_kernel(radius * 2 + 1, deleted)
+    if Round:
+        kernel = Round_kernel(radius * 2 + 1, deleted)
+    else:
+        kernel = Rectangle_kernel(radius * 2 + 1, deleted)
 
     # ---------- read ----------
     data, profile = read(source, masked=True)
@@ -466,9 +507,65 @@ def focaltool(
     )
 
 
+def focaltool_array(
+    source,
+    radius,
+    stat,
+    *,
+    out_path=None,
+    deleted=False,
+    q=50,
+    Round=True,
+    mode="reflect",
+    cval=0.0,
+    crop=True,
+    **kwargs,
+):
     
-    
-    
+    # ---------- kernel ----------
+    if Round:
+        kernel = Round_kernel(radius * 2 + 1, deleted)
+    else:
+        kernel = Rectangle_kernel(radius * 2 + 1, deleted)
+
+    # ---------- read ----------
+    # data, profile = read(source, masked=True)
+    valid_mask = (~source.mask).astype('uint8')
+    values = source.filled(0)
+
+    # ---------- cache ----------
+    cache = {}
+    # cache["count"] = convolve(valid_mask, kernel, mode=mode, cval=cval)
+
+    # ---------- dispatch ----------
+    if stat in FOCAL_STATS:
+        func = FOCAL_STATS[stat]
+    elif callable(stat):
+        func = stat
+    else:
+        raise ValueError(
+            f"Unknown stat '{stat}', must be one of {list(FOCAL_STATS.keys())} or callable"
+        )
+
+    result = func(
+        values,
+        valid_mask,
+        kernel,
+        mode=mode,
+        cval=cval,
+        cache=cache,
+        q=q,
+        **kwargs,
+    )
+
+    # ---------- mask ----------
+    if crop:
+        mask = source.mask
+    else:
+        mask = focal_count(values, valid_mask, kernel, mode=mode, cval=cval, cache=cache) == 0
+
+    # ---------- output ----------
+    return result, mask
 
 
 

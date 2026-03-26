@@ -17,8 +17,10 @@ from rastertool.core.api import (
                                  clip,
                                  reclass,
                                  colormap,
+                                 dummy_raster,
                                  merge_distance_weight,
                                  focaltool,
+                                 focaltool_array,
                                  remove_outliers
                                  )
 
