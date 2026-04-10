@@ -21,6 +21,27 @@ from rastertool.core.api import (
                                  merge_distance_weight,
                                  focaltool,
                                  focaltool_array,
-                                 remove_outliers
+                                 remove_outliers,
+                                 zonal,
                                  )
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 

@@ -148,8 +148,10 @@ def read(source,
                        resampling=resampling,
                        boundless=boundless,
                        fill_value=fill_value)
-        profile = src.profile
-    
+        profile = src.profile.copy()
+        nodata = profile['nodata']
+        dtype = profile['dtype']
+        profile['nodata'] = cast_value(nodata, dtype)
     return arr, profile
     
 
@@ -455,12 +457,12 @@ def get_geometry(ph_shp, crs=None):
 
 
 if __name__ == '__main__':
-    # current_dir = os.path.dirname(__file__)
-    # modules_inspect(current_dir)
+    current_dir = os.path.dirname(__file__)
+    modules_inspect(current_dir)
     
     
-    set_nodata( None, 'uint8', np.nan)
-    ...
+    # set_nodata( None, 'uint8', np.nan)
+    # ...
     
     
     

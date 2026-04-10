@@ -91,6 +91,38 @@ def Round_kernel(width, deleted=False):
 
 
 
+def Gaussian_kernel(width, sigma=None):
+    """
+    创建高斯核（用于核密度估计）
+
+    Parameters
+    ----------
+    width : int
+        核大小（必须为奇数）
+    sigma : float, optional
+        标准差，默认 width / 3
+
+    Returns
+    -------
+    kernel : np.ndarray
+        归一化高斯核
+    """
+    if width % 2 == 0:
+        raise ValueError("width 必须为奇数")
+
+    if sigma is None:
+        sigma = width / 3
+
+    radius = width // 2
+    y, x = np.mgrid[-radius:radius+1, -radius:radius+1]
+
+    kernel = np.exp(-(x**2 + y**2) / (2 * sigma**2))
+
+    # 归一化（很关键！）
+    kernel /= kernel.sum()
+
+    return kernel.astype(np.float32)
+
 def _focal_nonlinear(values, valid_mask, kernel, stat, mode, cval=0.0):
 
     footprint = kernel.astype(bool)
@@ -219,7 +251,29 @@ def _focal_perc(values, valid_mask, kernel, mode,
     
     
     
+@register_focal("kde")
+def focal_kde(values, valid_mask, kernel, *, mode, cval, cache, sigma=None):
+    cval = 0 
+    key = f"kde_{sigma}"
     
+    if key not in cache:
+        
+        
+        # 用高斯核替换普通 kernel
+        width = kernel.shape[0]
+        gkernel = Gaussian_kernel(width, sigma)
+        kernel = np.where(kernel==0, 0, gkernel)
+        kernel /= kernel.sum()
+        
+        # 只对有效值计算
+        # v = np.where(valid_mask, values, 0.0)
+        
+        weight_sum = convolve(values, kernel, mode=mode, cval=cval)
+        weight = convolve(valid_mask.astype('uint8'), kernel, mode=mode, cval=cval)
+        
+        cache[key] = weight_sum / weight
+        
+    return cache[key] 
     
     
 
@@ -459,7 +513,7 @@ def focaltool(
         kernel = Rectangle_kernel(radius * 2 + 1, deleted)
 
     # ---------- read ----------
-    data, profile = read(source, masked=True)
+    data, profile = read(source, indexes=1,masked=True)
     valid_mask = (~data.mask).astype('uint8')
     values = data.filled(0)
 
@@ -470,6 +524,8 @@ def focaltool(
     # ---------- dispatch ----------
     if stat in FOCAL_STATS:
         func = FOCAL_STATS[stat]
+        if stat == 'perc':
+            kwargs.update(q=q)
     elif callable(stat):
         func = stat
     else:
@@ -484,7 +540,6 @@ def focaltool(
         mode=mode,
         cval=cval,
         cache=cache,
-        q=q,
         **kwargs,
     )
 
