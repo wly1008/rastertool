@@ -23,6 +23,7 @@ from rastertool.core.api import (
                                  focaltool_array,
                                  remove_outliers,
                                  zonal,
+                                 feature_to_raster
                                  )
 
 

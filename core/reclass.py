@@ -58,7 +58,7 @@ def build_mask(data, expr):
         return (data >= a) & (data <= b)
     
     # >= <= > <
-    m = re.fullmatch(r"(>=|<=|>|<)\s*(-?\d+(\.\d+)?)", expr)
+    m = re.fullmatch(r"(>=|<=|>|<\=)\s*(-?\d+(\.\d+)?)", expr)
     if m:
         op = m.group(1)
         v = float(m.group(2))
@@ -71,6 +71,8 @@ def build_mask(data, expr):
             return data > v
         elif op == "<":
             return data < v
+        elif op == '=':
+            return data == v
     
     raise ValueError(f"Unsupported expression: {expr}")
 

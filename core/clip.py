@@ -1123,7 +1123,7 @@ def clip_rasterArray(
                                )
     else:
         return clip_array(source, src_bounds, dst_bounds,
-                          src_crs=src_crs, src_nodata=None,
+                          src_crs=src_crs, src_nodata=src_nodata,
                           dst_crs=dst_crs,
                           nodata=nodata,
                           mode=mode,

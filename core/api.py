@@ -16,4 +16,5 @@ from rastertool.core.outliers import remove_outliers
 from rastertool.core.colormap import colormap
 from rastertool.core.dummy_raster import dummy_raster
 from rastertool.core.zonal import zonal
+from rastertool.core.feature_to_raster import feature_to_raster
 
